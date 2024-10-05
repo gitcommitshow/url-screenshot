@@ -8,20 +8,19 @@ A lightweight microservice to generate preview image for web pages
 
 ## Installation
 
-This is a simple `Node.js` app. Just run it in any `node >= 20` environment.
+This is a simple `Node.js` app. Just run it in any `node >= 20` environment. I deploy it on the smallest possible AWS EC2 tiny instance where I have couple of more microservices running.
 
-It will consume minimal memory and storage footprint when not in use, which will be most of the time. And as long as you do not generate 100s of pages every minure, you don't need to go beyond tiny instance. Due to its low usage, I deploy it on the smallest possible AWS EC2 tiny instance where I have couple of more microservices runing.
-
+This microservice has a minimal memory and storage footprint. Not only because I deliberately avoided to add fancy features and dependencies, but also because of the nature of this use case - this microservice is going to be idle most of the time. And as long as you do not generate 100s of pages every minute, you don't need to go beyond a tiny instance to run this microservice.
 
 Make sure to set the configurations as per `env.sample`. The most important one is `SITE_URL`, if not set correctly, you might not be able to access the images saved locally. No trailing slash please.
 
 That's it, you can then start making API requests to get the preview image for any web page. Send a page URL, and it will give you a Screenshot image url which you can add to meta tags such as `og:image`, `twitter:image`, etc. of your page.
 
-Here's set of commands I'd use to set it up
+If you're a person who skim to the code directly, here's the list of commands you can use to set it up
 
 ```bash
 cp env.sample .env
-# Change the configurations you want. At least the SITE_URL
+# Change the configurations you want. At least the SITE_URL.
 npm install
 # Start the app
 npm run start:env
