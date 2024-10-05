@@ -45,5 +45,5 @@ curl http://localhost:3000/screenshot -X POST -d '{ "url": "https://gitcommit.sh
 
 - [x] Generate preview image
 - [ ] Upload image to a cloud service
-    - [ ] Cloudinary
+    - [x] Cloudinary
     - [ ] AWS S3
