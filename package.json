@@ -1,0 +1,26 @@
+{
+  "name": "url-screenshot",
+  "version": "1.0.0",
+  "description": "Take screenshot of a url for preview image",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js",
+    "install-chromium": "playwright install chromium",
+    "postinstall": "npm run install-chromium"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gitcommitshow/url-screenshot.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/gitcommitshow/url-screenshot/issues"
+  },
+  "homepage": "https://github.com/gitcommitshow/url-screenshot#readme",
+  "dependencies": {
+    "@playwright/test": "^1.47.2"
+  }
+}
