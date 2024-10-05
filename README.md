@@ -6,12 +6,11 @@ A lightweight microservice to generate preview image for web pages
 
 ![Example usage](./assets/example.png)
 
-
 ## Installation
 
 This is a simple `Node.js` app. Just run it in any `node >= 20` environment.
 
-It will consume minimal memory and storage footprint. Due to its low usage, I deploy it on the smallest possible AWS EC2 instance where I have couple of more microservices runing.
+It will consume minimal memory and storage footprint when not in use, which will be most of the time. And as long as you do not generate 100s of pages every minure, you don't need to go beyond tiny instance. Due to its low usage, I deploy it on the smallest possible AWS EC2 tiny instance where I have couple of more microservices runing.
 
 
 Make sure to set the configurations as per `env.sample`. The most important one is `SITE_URL`, if not set correctly, you might not be able to access the images saved locally. No trailing slash please.
@@ -110,3 +109,15 @@ fetch(SCREENSHOT_API_URL, {
 - [ ] Upload image to a cloud service
     - [x] Cloudinary
     - [ ] AWS S3
+
+## Why microservice?
+
+Well, suggest me the alternative
+
+> Why not simply use this code in the main application code where you need the preview image?
+
+That will impact your code security, performance, and maintainability negatively. Creating page preview, requires you to install a browser (the smallest possible chromium version takes 250+ MB space). It also requires a browser automation library (playwright in our case), which unnecessarily increases the attack surface area for your main application code. As both of these consume significant CPU and RAM, it might cause failures specially in resource-constrained environments such as GitHub actions. In my case, I had no use of browser automation in my main application code other than this page preview requirement (I used it in the tests but that is devDependency, the dev runtime, not the main application runtime). Running the browser and the browser automation library means that you need to provision resources in your main aplication for case of spikes in page preview image generation tasks. All these challenges were gone when I moved the page preview image generation task to an independent microservice.
+
+> Why not a serverless function then?
+
+I doubt that many of us are hosting our own serverless function infrastructure, which leads us to using paid serverless function cloud services where you cannot predict the cost. Many teams have burned their hands with paid serverless function cloud services. Also it will take you more time to setup. You will need to change the code to suit that particular serverless infrastructure, which means you will have some friction to move away once setup. This microservice setup is far more future-proof, interoperable, and extensible than a serverless function. If you ask for my personal taste, I'd even say that serverless functions are harder to maintain than a simple microservice. Although, if you're already deep into serverless infra, you might be better off with continuing to use serverless function for this use case as well.
