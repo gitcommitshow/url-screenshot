@@ -10,6 +10,8 @@ The most important one is `SITE_URL`, if not set correctly, you might not be abl
 
 ## Usage
 
+To generate screenshot, use following API
+
 ```
 POST /screenshot
 {
@@ -19,6 +21,16 @@ POST /screenshot
     width?: 1200, 
     height?: 630,
     clip?: { x: 0, y: 0 } // The point on page where to clip the screenshot from
+}
+```
+
+Returns the response in following format
+
+```
+{
+    "screenshot" : "http://localhost:3000/screenshot/1728124585000.png",
+    "fileType":"png",
+    "url":"https://the.input.url"
 }
 ```
 
