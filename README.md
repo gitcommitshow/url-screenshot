@@ -15,7 +15,7 @@ To generate screenshot, use following API
 ```
 POST /screenshot
 {
-    url: "fullPageUrl", // Take screenshot of this url
+    url: "https://original.url.to.screenshot",
     fileType?: "png",
     storageService?: "cloudinary", // Upload image here after generation, saves to "local" filesystem if not provided
     width?: 1200, 
@@ -28,10 +28,17 @@ Returns the response in following format
 
 ```
 {
-    "screenshot" : "http://localhost:3000/screenshot/1728124585000.png",
-    "fileType":"png",
-    "url":"https://the.input.url"
+    screenshot: "https://screenshot.url.permalink",
+    fileType: "png",
+    source: "https://original.url.to.screenshot",
+    uploadInfo?: { ...additionalCloudUploadInfo }
 }
+```
+
+A sample `curl` request to generate screenshot for `https://gitcommit.show/`
+
+```bash
+curl http://localhost:3000/screenshot -X POST -d '{ "url": "https://gitcommit.show/", "storageService":"cloudinary", "imageId": "test-overwrite", "width": "1200", "height": "630" }'
 ```
 
 ## Features
