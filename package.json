@@ -4,9 +4,13 @@
   "description": "Take screenshot of a url for preview image",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
+    "start:env": "node --env-file=.env index.js",
     "install-chromium": "playwright install chromium",
     "postinstall": "npm run install-chromium"
   },
@@ -21,6 +25,7 @@
   },
   "homepage": "https://github.com/gitcommitshow/url-screenshot#readme",
   "dependencies": {
-    "@playwright/test": "^1.47.2"
+    "@playwright/test": "^1.47.2",
+    "cloudinary": "^2.5.0"
   }
 }

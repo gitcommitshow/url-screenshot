@@ -3,6 +3,7 @@ import url from "url";
 import fs from "fs";
 import path from "path";
 import { chromium } from "@playwright/test";
+import { v2 as cloudinary } from "cloudinary";
 
 const SCREENSHOT_FOLDER_NAME = "screenshots";
 const IMG_DIRECTORY = process.env.IMG_DIRECTORY || path.join(process.cwd(), SCREENSHOT_FOLDER_NAME);
@@ -10,6 +11,14 @@ const SITE_URL = process.env.SITE_URL || "http://localhost:3000";
 const PORT = process.env.PORT || 3000;
 const SUPPORTED_FILETYPES = ["png", "jpeg"];
 const DEFAULT_FILETYPE = "png";
+
+cloudinary.config({
+    secure: true,
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+})
+// console.log("Cloudinary configs: " + JSON.stringify(cloudinary.config()));
 
 const server = http.createServer();
 server.on("request", async (req, res) => {
@@ -22,7 +31,8 @@ server.on("request", async (req, res) => {
     switch (req.method + " " + rootPath) {
         /**
          * POST /screenshot
-         * Body: { url: "fullPageUrl", fileType?: "png", storageService?: "cloudinary", width?: 1200, height?: 630, clip?: { x: 0, y: 0 } }
+         * Body: { url: "https://original.url.to.screenshot", fileType?: "png", storageService?: "cloudinary", width?: 1200, height?: 630, clip?: { x: 0, y: 0 }, imageId: "same_id_image_gets_replaced", folder: "to_categorize" }
+         * Response: { screenshot: "https://screenshot.url.permalink", fileType: "png", source: "https://original.url.to.screenshot", uploadInfo?: { ...additionalCloudUploadInfo } }
          */
         case "POST /screenshot":
             let body = "";
@@ -44,19 +54,12 @@ server.on("request", async (req, res) => {
                     return res.end()
                 }
                 try {
-                    let screenshotOptions = {};
-                    if (bodyJson.clip) {
-                        screenshotOptions.clip = bodyJson.clip;
-                    }
-                    if (bodyJson.width && bodyJson.height) {
-                        screenshotOptions.width = bodyJson.width;
-                        screenshotOptions.height = bodyJson.height;
-                    }
-                    screenshotOptions.storageService = bodyJson.storageService;
-                    screenshotOptions.fileType = bodyJson.fileType;
-                    const screenshot = await generateScreenshot(bodyJson.url, screenshotOptions);
+                    const { url, imageId, folder, storageService, fileType, clip, width, height } = bodyJson;
+                    const { screenshot, uploadInfo, fileType: fileTypeReceived, source } = await generateScreenshot(url, { imageId, folder, storageService, fileType, clip, width, height });
+                    console.log("Successfully generated screenshot for: " + source);
+                    console.log("                                  ==>: " + screenshot);
                     res.writeHead(200, { "Content-Type": "text/json; charset=utf-8" });
-                    res.end(JSON.stringify({ screenshot, fileType: "png", url: bodyJson.url }));
+                    res.end(JSON.stringify({ screenshot, fileType: fileTypeReceived, source, uploadInfo }));
                 } catch (err) {
                     res.writeHead(500, { "Content-Type": "text/json; charset=utf-8" });
                     return res.end(JSON.stringify({ error: typeof err === "string" ? err : 'Unexpected error. Contact admin.' }));
@@ -106,12 +109,12 @@ server.listen(PORT, () => {
 
 
 async function generateScreenshot(url, options) {
-    let imageUrl;
+    let imageUrl; // SITE_URL/screenshot/filename
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
     let viewport;
     if (options.width && options.height) {
-        viewport = { width: options.width, height: options.height }
+        viewport = { width: Number(options.width), height: Number(options.height) }
     }
     const page = await context.newPage({ viewport });
     await page.goto(url, {
@@ -126,19 +129,27 @@ async function generateScreenshot(url, options) {
         console.error("Requested file type is not supported. Now creating default type instead: " + DEFAULT_FILETYPE);
         fileType = DEFAULT_FILETYPE;
     }
-    const filepath = path.join(IMG_DIRECTORY, `${Date.now()}.${fileType}`);
+    const filenameWithoutExtension = Date.now().toString();
+    const filePath = path.join(IMG_DIRECTORY, filenameWithoutExtension + "." + fileType);
     let clip;
     if (options.clip) {
         clip = options.clip;
     }
-    // if (viewport?.width && !clip?.width) {
-    //     // Clip image from top left corner until the viewport size
-    //     if (!clip) clip = { x: 0, y: 0 };
-    //     clip.width = viewport.width;
-    //     clip.height = viewport.height;
-    // }
+    if (viewport?.width && !clip?.width) {
+        // Clip image from top left corner until the viewport size
+        if (!clip) clip = { x: 0, y: 0 };
+        clip.width = viewport.width;
+        clip.height = viewport.height;
+    }
+    if (clip) {
+        // Clip accepts only number
+        if (clip.x) clip.x = Number(clip.x);
+        if (clip.y) clip.y = Number(clip.y);
+        if (clip.width) clip.width = Number(clip.width);
+        if (clip.height) clip.height = Number(clip.height);
+    }
     const image = await page.screenshot({
-        path: filepath,
+        path: filePath,
         scale: "css", // 1 px per css px
         type: options?.fileType || DEFAULT_FILETYPE,
         clip
@@ -146,36 +157,41 @@ async function generateScreenshot(url, options) {
     if (!image) {
         throw new Error("Image not created");
     }
-    imageUrl = SITE_URL + "/screenshot/" + path.basename(filepath);
+    imageUrl = SITE_URL + "/screenshot/" + path.basename(filePath);
     if (!options?.storageService || options?.storageService === "local") {
-        return imageUrl;
+        return { screenshot: imageUrl, fileType, source: url };
     }
     try {
-        const cloudUploadResponse = await uploadToCloud(filepath);
+        const cloudUploadResponse = await uploadToCloud(filePath, {
+            storageService: options?.storageService,
+            imageId: options?.imageId || filenameWithoutExtension,
+            folder: options?.folder
+        });
         if (cloudUploadResponse) {
-            deleteFile(filepath);
+            deleteFile(filePath);
         }
-        return cloudUploadResponse
+        return { screenshot: cloudUploadResponse?.permalink, fileType, uploadInfo: cloudUploadResponse?.uploadInfo, source: url }
     } catch (err) {
-        return imageUrl;
+        console.error("Failed to upload image to cloud service");
+        return { screenshot: imageUrl, fileType, source: url };
     }
 }
 
-function deleteFile(fiepath) {
-    fs.unlink(filepath, err => {
+function deleteFile(filePath) {
+    fs.unlink(filePath, err => {
         if (err) console.error("Failed to delete local file:", err);
         else console.log("File deleted");
     });
 }
 
-async function uploadToCloud(filepath, cloudService) {
-    switch (cloudService) {
+async function uploadToCloud(filePath, options) {
+    switch (options?.storageService?.toLowerCase()) {
         case "cloudinary":
-            const result = await cloudinary.uploader.upload(filepath, {
-                public_id: imageId,
-                folder: options.cloudinaryFolder || 'default_folder'
+            const result = await cloudinary.uploader.upload(filePath, {
+                public_id: options?.imageId,
+                folder: options?.folder || "default_folder"
             })
-            return result;
+            return { permalink: result?.secure_url, uploadInfo: result, source: filePath };
         case "s3":
             throw new Error("S3 cloud service is not implemented yet")
         default:
