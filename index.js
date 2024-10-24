@@ -18,7 +18,7 @@ cloudinary.config({
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
 })
-// console.log("Cloudinary configs: " + JSON.stringify(cloudinary.config()));
+console.log("Cloudinary configs: " + JSON.stringify(cloudinary.config()));
 
 const server = http.createServer();
 server.on("request", async (req, res) => {
@@ -54,12 +54,12 @@ server.on("request", async (req, res) => {
                     return res.end()
                 }
                 try {
-                    const { url, imageId, folder, storageService, fileType, clip, width, height } = bodyJson;
-                    const { screenshot, uploadInfo, fileType: fileTypeReceived, source } = await generateScreenshot(url, { imageId, folder, storageService, fileType, clip, width, height });
+                    const { url, imageId, folder, storageService, fileType, clip, width, height, workspace } = bodyJson;
+                    const { screenshot, uploadInfo, fileType: fileTypeReceived, source, workspace: workspaceSaved } = await generateScreenshot(url, { imageId, folder, storageService, fileType, clip, width, height, workspace });
                     console.log("Successfully generated screenshot for: " + source);
                     console.log("                                  ==>: " + screenshot);
                     res.writeHead(200, { "Content-Type": "text/json; charset=utf-8" });
-                    res.end(JSON.stringify({ screenshot, fileType: fileTypeReceived, source, uploadInfo }));
+                    res.end(JSON.stringify({ screenshot, fileType: fileTypeReceived, source, uploadInfo, workspace: workspaceSaved }));
                 } catch (err) {
                     res.writeHead(500, { "Content-Type": "text/json; charset=utf-8" });
                     return res.end(JSON.stringify({ error: typeof err === "string" ? err : 'Unexpected error. Contact admin.' }));
@@ -108,6 +108,24 @@ server.listen(PORT, () => {
 });
 
 
+/**
+ * 
+ * @param {string} url - Generate screeshot of this url
+ * @param {Object} options
+ * @param {string} [options.width] - The width of the screenshot
+ * @param {string} [options.height] - The height of the screenshot
+ * @param {string} [options.fileType] - The file type of the screenshot e.g. jpg, png
+ * @param {string} [options.storageService] - Store the generated screenshot in this (cloud) storage service e.g. cloudinary, s3, local, etc.
+ * @param {string} [options.imageId] - Unique image id. The image with same id in the same workspace gets replaced.
+ * @param {string} [options.workspace] - Separate screenshots for different websites/services, default is 
+ * @param {string} [options.folder] - Sub folder inside the workspace where the image need to be stored
+ * @param {Object} [options.clip] - Use it to capture a part of the page. When not present, captures the full page.
+ * @param {Object} [options.clip.x] - Start capture from this x coordinate
+ * @param {Object} [options.clip.y] - Start capture from this y coordinate
+ * @param {Object} [options.clip.width] - Captured screenshot width (default is options.width)
+ * @param {Object} [options.clip.height] - Captured screenshot height (default is options.width)
+ * @returns 
+ */
 async function generateScreenshot(url, options) {
     let imageUrl; // SITE_URL/screenshot/filename
     const browser = await chromium.launch({ headless: true });
@@ -130,7 +148,8 @@ async function generateScreenshot(url, options) {
         fileType = DEFAULT_FILETYPE;
     }
     const filenameWithoutExtension = Date.now().toString();
-    const filePath = path.join(IMG_DIRECTORY, filenameWithoutExtension + "." + fileType);
+    const workspace = options.workspace || new URL(url).hostname;
+    const filePath = path.join(IMG_DIRECTORY, workspace || "", options.folder || "", filenameWithoutExtension + "." + fileType);
     let clip;
     if (options.clip) {
         clip = options.clip;
@@ -165,6 +184,7 @@ async function generateScreenshot(url, options) {
         const cloudUploadResponse = await uploadToCloud(filePath, {
             storageService: options?.storageService,
             imageId: options?.imageId || filenameWithoutExtension,
+            workspace: workspace,
             folder: options?.folder
         });
         if (cloudUploadResponse) {
@@ -189,7 +209,7 @@ async function uploadToCloud(filePath, options) {
         case "cloudinary":
             const result = await cloudinary.uploader.upload(filePath, {
                 public_id: options?.imageId,
-                folder: options?.folder || "default_folder"
+                folder: (options?.workspace || "") + (options?.folder || "default_folder")
             })
             return { permalink: result?.secure_url, uploadInfo: result, source: filePath };
         case "s3":
