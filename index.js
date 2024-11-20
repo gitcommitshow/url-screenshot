@@ -112,50 +112,54 @@ async function generateScreenshot(url, options) {
     let imageUrl; // SITE_URL/screenshot/filename
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
-    let viewport;
-    if (options.width && options.height) {
-        viewport = { width: Number(options.width), height: Number(options.height) }
-    }
-    const page = await context.newPage({ viewport });
-    await page.goto(url, {
-        waitUntil: 'domcontentloaded',
-        timeout: 60000
-    });
-    if (!fs.existsSync(IMG_DIRECTORY)) {
-        fs.mkdirSync(IMG_DIRECTORY, { recursive: true });
-    }
     let fileType = options?.fileType || DEFAULT_FILETYPE;
     if (!SUPPORTED_FILETYPES.includes(fileType)) {
         console.error("Requested file type is not supported. Now creating default type instead: " + DEFAULT_FILETYPE);
         fileType = DEFAULT_FILETYPE;
     }
+    if (!fs.existsSync(IMG_DIRECTORY)) {
+        fs.mkdirSync(IMG_DIRECTORY, { recursive: true });
+    }
     const filenameWithoutExtension = Date.now().toString();
     const filePath = path.join(IMG_DIRECTORY, filenameWithoutExtension + "." + fileType);
-    let clip;
-    if (options.clip) {
-        clip = options.clip;
-    }
-    if (viewport?.width && !clip?.width) {
-        // Clip image from top left corner until the viewport size
-        if (!clip) clip = { x: 0, y: 0 };
-        clip.width = viewport.width;
-        clip.height = viewport.height;
-    }
-    if (clip) {
-        // Clip accepts only number
-        if (clip.x) clip.x = Number(clip.x);
-        if (clip.y) clip.y = Number(clip.y);
-        if (clip.width) clip.width = Number(clip.width);
-        if (clip.height) clip.height = Number(clip.height);
-    }
-    const image = await page.screenshot({
-        path: filePath,
-        scale: "css", // 1 px per css px
-        type: options?.fileType || DEFAULT_FILETYPE,
-        clip
-    });
-    if (!image) {
-        throw new Error("Image not created");
+    try {
+        let viewport;
+        if (options.width && options.height) {
+            viewport = { width: Number(options.width), height: Number(options.height) }
+        }
+        const page = await context.newPage({ viewport });
+        await page.goto(url, {
+            waitUntil: 'domcontentloaded',
+            timeout: 60000
+        });
+        let clip;
+        if (options.clip) {
+            clip = options.clip;
+        }
+        if (viewport?.width && !clip?.width) {
+            // Clip image from top left corner until the viewport size
+            if (!clip) clip = { x: 0, y: 0 };
+            clip.width = viewport.width;
+            clip.height = viewport.height;
+        }
+        if (clip) {
+            // Clip accepts only number
+            if (clip.x) clip.x = Number(clip.x);
+            if (clip.y) clip.y = Number(clip.y);
+            if (clip.width) clip.width = Number(clip.width);
+            if (clip.height) clip.height = Number(clip.height);
+        }
+        const image = await page.screenshot({
+            path: filePath,
+            scale: "css", // 1 px per css px
+            type: options?.fileType || DEFAULT_FILETYPE,
+            clip
+        });
+        if (!image) {
+            throw new Error("Image not created");
+        }
+    } finally {
+        browser.close();
     }
     imageUrl = SITE_URL + "/screenshot/" + path.basename(filePath);
     if (!options?.storageService || options?.storageService === "local") {
